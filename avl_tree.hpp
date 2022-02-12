@@ -9,8 +9,8 @@
 #include <stdexcept>
 #include <string>
 #include <optional>
-
-//TODO elegantly check template param if it is of right type
+#include "utility.hpp"
+//TODO elegantly check template param if it is of right type (??)
 //TODO move constructor?
 template< typename Key, typename Data >
 struct avl_node {
