@@ -17,18 +17,24 @@ template<integral T>
 auto func() { ... }
 */
 
-template<typename T>
+template<class T>
 constexpr auto check_integral_type(std::string_view error_msg) {
     if constexpr (!std::is_integral_v< T >) {
         throw std::invalid_argument(error_msg.data());
     }
 }
 
-template<typename T, typename U>
+template<class T, class U>
 constexpr auto check_different_type(std::string_view error_msg) {
     if constexpr (std::is_same_v< T, U >) {
         throw std::invalid_argument(error_msg.data());
     }
+}
+
+template<class Mapped, class Key>
+constexpr auto map_constructor_check() {
+    check_integral_type<Key>("Key is not integral type");
+    check_different_type<Mapped, Key>("Mapped type and Key type are the same");
 }
 
 #endif //HALADO_CPP_BEAD_UTILITY_HPP

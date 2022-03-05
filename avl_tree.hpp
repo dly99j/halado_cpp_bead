@@ -35,6 +35,7 @@ public:
     void                                    insert(const Key& k, const Data& d);
     void                                    erase(const Key& k);
     std::optional< node_ptr<Key, Data> >    find(const Key& k);
+    std::optional< Key >    find_max_key();
 
 private:    
     node_ptr< Key, Data > m_root;
@@ -79,6 +80,16 @@ std::optional< node_ptr<Key, Data> > avl_tree<Key, Data>::find(const Key &k) {
         return res;
     }
     return std::nullopt;
+}
+
+template<typename Key, typename Data>
+std::optional<Key> avl_tree<Key, Data>::find_max_key() {
+    if (m_root == nullptr) { return std::nullopt; }
+    auto helper = m_root;
+    while (helper->right != nullptr) {
+        helper = helper->right;
+    }
+    return helper->key;
 }
 
 template<typename Key, typename Data>
@@ -306,5 +317,6 @@ void avl_tree<Key, Data>::avl_find(node_ptr<Key, Data> &t, node_ptr<Key, Data> &
         avl_find(t->left, res, k, d);
     }
 }
+
 
 #endif//HALADO_CPP_BEAD_AVL_TREE_HPP
