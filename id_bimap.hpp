@@ -17,9 +17,8 @@ namespace bead {
              class Compare = std::less<Key>,
              class Allocator = std::allocator<std::pair<const Key, Mapped>>>
     class id_bimap {
-
-#pragma region typedefs
-
+//Typedefs
+    public:
         using mapped_type       = Mapped;
         using key_type          = Key;
         using value_type        = std::pair<Key, Mapped>;
@@ -32,98 +31,99 @@ namespace bead {
         using pointer           = typename std::allocator_traits<Allocator>::pointer;
         using const_pointer     = typename std::allocator_traits<Allocator>::const_pointer;
         //TODO other member types
-#pragma endregion //typedefs
 
-#pragma region iterator
     public:
-
+//iterator
         struct iterator {
             using iterator_category = std::bidirectional_iterator_tag;
             using difference_type   = std::ptrdiff_t;
-            using value_type        = value_type;
-            using pointer           = pointer;
-            using reference         = reference;
+            using value_type        = std::pair<Key, Mapped>;
+            using pointer           = typename std::allocator_traits<Allocator>::pointer;
+            using reference         = typename std::allocator_traits<Allocator>::const_pointer;
 
-            iterator(pointer ptr);
-
-            reference operator*() const;
-            pointer operator->();
-            iterator& operator++();
-            const iterator operator++(int);
-            friend bool operator== (const iterator& a, const iterator& b);
-            friend bool operator!= (const iterator& a, const iterator& b);
+            explicit    iterator(pointer ptr);
+            reference   operator*() const;
+            pointer     operator->();
+            iterator&   operator++();
+            const       iterator operator++(int);
+            bool        operator==(const iterator& rhs);
+            bool        operator!=(const iterator& rhs);
 
         private:
             pointer m_ptr;
         };
-
-#pragma endregion //iterator
-#pragma region constructors
+//constructors/destructor
     public:
         id_bimap();
         id_bimap(const id_bimap &other);//TODO move constructor
         ~id_bimap();
-#pragma endregion//constructors
-#pragma region member functions
+
+//public member functions
     public:
+        iterator begin();
+        iterator end();
         //std::pair<> insert(const Mapped &value); //TODO other signatures
-#pragma endregion
 
-#pragma region data
+//private functions
     private:
-        std::size_t m_size{};
-        avl_tree<Key, Mapped> m_key_to_data;
-        avl_tree<Mapped, Key> m_data_to_key;
-#pragma endregion //data
+        std::size_t             m_size{};
+        avl_tree<Key, Mapped>   m_key_to_data;
+        avl_tree<Mapped, Key>   m_data_to_key;
     };
-#pragma region alias types
+
+//type aliases
     template<typename T>
-    using kchar_id_bimap = id_bimap<T, char>;
+    using kchar_id_bimap    = id_bimap<T, char>;
 
-    using string_id_bimap = id_bimap<std::string>;
-#pragma endregion //alias typey
+    using string_id_bimap   = id_bimap<std::string>;
 }
-#pragma region iterator defs
 
+//iterator definitions
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::iterator(id_bimap::pointer ptr) : m_ptr(ptr) {
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
-typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::value_type &bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator*() const {
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::reference bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator*() const {
     return *m_ptr;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
-bead::id_bimap<Mapped, Key, Compare, Allocator>::pointer bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator->() {
-    return nullptr;
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::pointer bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator->() {
+    return m_ptr;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
-bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator++() {
-    return anyád;
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator++() {
+    ++m_ptr;
+    return *this;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
-const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator++(int) {
-    return bead::id_bimap::iterator(nullptr);
+const typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator++(int) {
+    auto temp = *this;
+    ++m_ptr;
+    return temp;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
 bool bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator==(
-        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &a,
-        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &b) {
-    return false;
+        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &rhs) {
+    return this->m_ptr == rhs.m_ptr;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
 bool bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator::operator!=(
-        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &a,
-        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &b) {
-    return false;
+        const bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator &rhs) {
+    return this->m_ptr != rhs.m_ptr;
 }
 
-#pragma endregion //iterator defs
-
-#pragma region constructor/destructor defs
+//map constructor/destructor definitions
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap() {
     map_constructor_check<Mapped, Key>();
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(const id_bimap &other) {
     map_constructor_check<Mapped, Key>();
@@ -131,12 +131,23 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(const id_bimap &other)
     this->m_key_to_data = other.m_key_to_data;
     this->m_data_to_key = other.m_data_to_key;
 }
+
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap::~id_bimap() {
     //??? TODO do i need this?
 }
-#pragma endregion //constructor/destructor defs
-#pragma region member function defs
+
+//map member function definitions
+
+template<class Mapped, class Key, class Compare, class Allocator>
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::begin() {
+    return bead::id_bimap::iterator(nullptr);
+}
+
+template<class Mapped, class Key, class Compare, class Allocator>
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::end() {
+    return bead::id_bimap::iterator(nullptr);
+}
 /*
 template<class Mapped, class Key, class Compare, class Allocator>
 typename id_bimap<Mapped, Key, Compare, Allocator>::value_type id_bimap<Mapped, Key, Compare, Allocator>::insert(const Mapped &value) {
@@ -156,7 +167,6 @@ typename id_bimap<Mapped, Key, Compare, Allocator>::value_type id_bimap<Mapped, 
 }
 */
 
-#pragma endregion // member function defs
 
 
 #endif//HALADO_CPP_BEAD_ID_BIMAP_HPP

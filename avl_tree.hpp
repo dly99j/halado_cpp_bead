@@ -35,7 +35,8 @@ public:
     void                                    insert(const Key& k, const Data& d);
     void                                    erase(const Key& k);
     std::optional< node_ptr<Key, Data> >    find(const Key& k);
-    std::optional< Key >    find_max_key();
+    std::optional< Key >                    find_max_key();
+    std::optional< Key >                    find_min_key();
 
 private:    
     node_ptr< Key, Data > m_root;
@@ -91,6 +92,17 @@ std::optional<Key> avl_tree<Key, Data>::find_max_key() {
     }
     return helper->key;
 }
+
+template<typename Key, typename Data>
+std::optional<Key> avl_tree<Key, Data>::find_min_key() {
+    if (m_root == nullptr) { return std::nullopt; }
+    auto helper = m_root;
+    while (helper->left != nullptr) {
+        helper = helper->left;
+    }
+    return helper->key;
+}
+
 
 template<typename Key, typename Data>
 void avl_tree<Key, Data>::balance_pp_p(node_ptr< Key, Data > &t,

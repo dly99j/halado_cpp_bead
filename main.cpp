@@ -4,6 +4,8 @@
 
 #define NFAIL
 
+using namespace bead;
+
 void F0_types() {
 #ifndef NFAIL
     // EXPECT FAIL: Template parameter "value" must always be specified.
