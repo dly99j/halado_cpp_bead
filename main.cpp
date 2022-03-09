@@ -1,9 +1,9 @@
 #include <iostream>
 #include <string>
-#include "id_bimap.hpp"
+#include "avl_tree.hpp"
 
 #define NFAIL
-
+/*
 using namespace bead;
 
 void F0_types() {
@@ -39,7 +39,13 @@ void F0_types() {
     static_assert(std::is_same_v<decltype(CTM)::key_type, char>);
     static_assert(std::is_same_v<decltype(CTM)::mapped_type, T>);
 }
-
+*/
 int main() {
-    F0_types();
+    //F0_types();
+
+    avl_tree<int, std::string> tree;
+    tree.insert(1, "asd");
+    tree.insert(    tree.insert(2, "ddd");
+                3, "hi");
+    std::cout << tree.find(1).has_value() << '\n';
 }
