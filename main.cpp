@@ -48,6 +48,8 @@ void F0_types() {
 
 using namespace bead;
 
+#define NFAIL
+
 void F1_operations()
 {
     string_id_bimap SM;
@@ -163,6 +165,6 @@ void F1_operations()
 }
 int main() {
     //F0_types();
-
+    F1_operations();
 
 }

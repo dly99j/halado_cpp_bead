@@ -5,10 +5,12 @@
 #ifndef HALADO_CPP_BEAD_ID_BIMAP_HPP
 #define HALADO_CPP_BEAD_ID_BIMAP_HPP
 
-#include <type_traits>
+#include "utility.hpp"
+#include <algorithm>
+#include <map>
 #include <memory>
-#include <unordered_map>
 #include <stdexcept>
+#include <type_traits>
 
 //TODO check if integral type and if comparable, exception if not (this is ugly! - i mean the exception, the solution is nice)
 //I might need my own exceptions
@@ -23,23 +25,22 @@ namespace bead {
     class id_bimap {
 //Typedefs
     public:
-        using mapped_type       = Mapped;
-        using key_type          = Key;
-        using value_type        = std::pair<Key, Mapped>;
-        using size_type         = std::size_t;
-        using difference_type   = std::ptrdiff_t;//questionmark? TODO look this up
-        using key_compare       = Compare;
-        using allocator_type    = Allocator;
-        using reference         = value_type &;
-        using const_reference   = const value_type &;
-        using pointer           = typename std::allocator_traits<Allocator>::pointer;
-        using const_pointer     = typename std::allocator_traits<Allocator>::const_pointer;
-        //TODO other member types
+        using key_type                  = Key;
+        using mapped_type               = Mapped;
+        using value_type                = std::pair<Key, Mapped>;
+        using key_compare               = Compare;
+        using allocator_type            = Allocator;
+        using pointer                   = typename std::allocator_traits<Allocator>::pointer;
+        using const_pointer             = typename std::allocator_traits<Allocator>::const_pointer;
+        using reference                 = value_type &;
+        using const_reference           = const value_type &;
+        using size_type                 = std::size_t;
+        using difference_type           = std::ptrdiff_t;//questionmark? TODO look this up
+        using iterator                  = typename std::map<Key, Mapped, Compare, Allocator>::iterator;
+        using const_iterator            = typename std::map<Key, Mapped, Compare, Allocator>::const_iterator;
+        using reverse_iterator          = std::reverse_iterator<iterator>;
+        using const_reverse_iterator    = std::reverse_iterator<const_iterator>;
 
-    public:
-//iterator
-        using iterator          = typename std::unordered_map<Mapped, Key, Compare, Allocator>::iterator;
-        using const_iterator    = typename std::unordered_map<Mapped, Key, Compare, Allocator>::const_iterator;
 //constructors/destructor
     public:
         id_bimap();
@@ -49,28 +50,28 @@ namespace bead {
 
 //public member functions
     public:
-        const_iterator begin();
-        const_iterator end();
+        const_iterator begin() const noexcept;
+        const_iterator end() const noexcept;
         std::pair<const_iterator, bool> insert(const Mapped &value); //TODO other signatures
 
-        const Mapped& operator[](const Key& k);
-        const Key& operator[](const Mapped& m);
+        const Mapped& operator[](const Key& k) const;
+        const Key& operator[](const Mapped& m) const;
 
-        auto empty();
-        auto size();
+        auto empty() const noexcept;
+        auto size() const noexcept;
         auto clear();
         auto erase(const Key& key);
         auto erase(const Mapped& mapped);
-        auto find(const Key& key);
-        auto find(const Mapped& mapped);
+        auto find(const Key& key) const noexcept;
+        auto find(const Mapped& mapped) const noexcept;
 
 //private functions
     private:
-        auto find_iter(const Mapped& m);
+        auto find_iter(const Mapped& m) const noexcept;
 
     private:
         std::size_t                                 m_size{};
-        std::unordered_map<Key, Mapped, Compare, Allocator>   m_key_to_data;
+        std::map<Key, Mapped, Compare, Allocator>   m_key_to_data;
         //std::map<Key, Mapped, Compare, Allocator>   m_data_to_key;
     };
 
@@ -98,9 +99,9 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(const id_bimap &other)
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(std::initializer_list<Mapped> l) {
+bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(std::initializer_list<Mapped> ilist) {
     map_constructor_check<Mapped, Key>();
-    for (auto i : l) {
+    for (auto i : ilist) {
         this->insert(i);
     }
 }
@@ -114,12 +115,16 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap::~id_bimap() {
 //map member function definitions
 
 template<class Mapped, class Key, class Compare, class Allocator>
-typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::begin() {
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator
+        bead::id_bimap<Mapped, Key, Compare, Allocator>::begin() const noexcept {
+
     return m_key_to_data.begin();
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator bead::id_bimap<Mapped, Key, Compare, Allocator>::end() {
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator
+        bead::id_bimap<Mapped, Key, Compare, Allocator>::end() const noexcept {
+
     return m_key_to_data.end();
 }
 
@@ -129,47 +134,48 @@ std::pair<typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterat
 
     Key next_key;
 
+    for (auto it = begin(); it != end(); ++it) {
+        if (it->second == value) {
+            return { it, false };
+        }
+    }
+
     if (m_key_to_data.empty()) {
         next_key = 0;
     } else {
         next_key = m_key_to_data.rbegin()->first + 1;
     }
 
-    return m_key_to_data.insert(next_key, value);
+    return m_key_to_data.insert( { next_key, value } );
 }
 template<class Mapped, class Key, class Compare, class Allocator>
-const Mapped& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Key& k) {
+const Mapped& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Key& k) const {
 
-    if (m_key_to_data.find(k) == m_key_to_data.end()) {
+    auto value = m_key_to_data.find(k);
+
+    if ( value == m_key_to_data.end() ) {
         throw std::out_of_range("index out of range");
     }
 
-    return m_key_to_data[k];
+    return value->second;
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-const Key& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Mapped& m) {
+const Key& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Mapped& m) const {
 
-    bool exists {};
-    Key to_return;
-    for (auto[key, mapped] : m_key_to_data) {
+    for (const auto&[key, mapped] : m_key_to_data) {
         if (mapped == m) {
-            exists = true;
-            to_return = key;
+            return key;
         }
     }
-    if (!exists) {
-        throw std::domain_error("mapped value is not in map");
-    }
-
-    return to_return;
+    throw std::domain_error("mapped value is not in map");
 }
 template<class Mapped, class Key, class Compare, class Allocator>
-auto bead::id_bimap<Mapped, Key, Compare, Allocator>::empty() {
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::empty() const noexcept {
     return m_key_to_data.empty();
 }
 template<class Mapped, class Key, class Compare, class Allocator>
-auto bead::id_bimap<Mapped, Key, Compare, Allocator>::size() {
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::size() const noexcept {
     return m_key_to_data.size();
 }
 template<class Mapped, class Key, class Compare, class Allocator>
@@ -184,29 +190,29 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Key& key) {
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Mapped& mapped) {
     auto it = find_iter(mapped);
-    if (it == nullptr) return;
+    if (it == end()) return;
     m_key_to_data.erase(it);
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_iter(const Mapped& m) {
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_iter(const Mapped& m) const noexcept {
     for (auto it = begin(); it != end(); ++it) {
-        if (it->first == m)
+        if (it->second == m)
             return it;
     }
-    return nullptr;
+    return end();
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) {
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) const noexcept {
     try {
         return m_key_to_data.find(key);
     } catch(...) {}
-    return nullptr;
+    return end();
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Mapped& mapped) {
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Mapped& mapped) const noexcept {
     return find_iter(mapped);
 }
 
