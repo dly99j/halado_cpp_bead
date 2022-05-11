@@ -68,6 +68,7 @@ namespace bead {
 //private functions
     private:
         auto find_iter(const Mapped& m) const noexcept;
+        auto reorder_map();
 
     private:
         std::size_t                                 m_size{};
@@ -185,6 +186,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::clear() {
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Key& key) {
     m_key_to_data.erase(key);
+    reorder_map();
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
@@ -192,6 +194,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Mapped& mapped
     auto it = find_iter(mapped);
     if (it == end()) return;
     m_key_to_data.erase(it);
+    reorder_map();
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
@@ -214,6 +217,17 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) const
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Mapped& mapped) const noexcept {
     return find_iter(mapped);
+}
+
+template<class Mapped, class Key, class Compare, class Allocator>
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::reorder_map() {
+    std::map<Key, Mapped, Compare, Allocator> new_map;
+    int new_key{};
+    for (auto&& [key, mapped] : m_key_to_data) {
+        auto value = std::make_pair(std::move(new_key++), std::move(mapped));
+        new_map.insert( std::move(value) );
+    }
+    m_key_to_data = std::move(new_map);
 }
 
 

@@ -2,8 +2,8 @@
 #include <string>
 #include "id_bimap.hpp"
 
-//#define NFAIL
-/*
+#define NFAIL
+
 using namespace bead;
 
 void F0_types() {
@@ -39,7 +39,7 @@ void F0_types() {
     static_assert(std::is_same_v<decltype(CTM)::key_type, char>);
     static_assert(std::is_same_v<decltype(CTM)::mapped_type, T>);
 }
-*/
+
 #include <cassert>
 #include <sstream>
 #include <stdexcept>
@@ -164,7 +164,7 @@ void F1_operations()
     assert(OSS.str() == "gsd, Whisperity, Bjarne, Herb, ");
 }
 int main() {
-    //F0_types();
+    F0_types();
     F1_operations();
 
 }
