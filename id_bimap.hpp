@@ -44,26 +44,36 @@ namespace bead {
 //constructors/destructor
     public:
         id_bimap();
-        id_bimap(const id_bimap &other);//TODO move constructor
+        id_bimap(const id_bimap&);
+        id_bimap(id_bimap&&) noexcept;
         id_bimap(std::initializer_list<Mapped>);
-        ~id_bimap();
+        ~id_bimap() = default;
 
 //public member functions
     public:
+        id_bimap& operator=(const id_bimap&);
+        id_bimap& operator=(id_bimap&&) noexcept ;
+
         const_iterator begin() const noexcept;
         const_iterator end() const noexcept;
-        std::pair<const_iterator, bool> insert(const Mapped &value); //TODO other signatures
+        std::pair<const_iterator, bool> insert(const Mapped&); //TODO other signatures
+        template<typename... Args>
+        std::pair<const_iterator, bool> emplace(Args&&...);
 
-        const Mapped& operator[](const Key& k) const;
-        const Key& operator[](const Mapped& m) const;
+        const Mapped& operator[](const Key&) const;
+        const Key& operator[](const Mapped&) const;
 
         auto empty() const noexcept;
         auto size() const noexcept;
         auto clear();
-        auto erase(const Key& key);
-        auto erase(const Mapped& mapped);
-        auto find(const Key& key) const noexcept;
-        auto find(const Mapped& mapped) const noexcept;
+        auto erase(const Key&);
+        auto erase(const Mapped&);
+        auto find(const Key&) const noexcept;
+        auto find(const Mapped&) const noexcept;
+        template<typename pred>
+        auto find_if(pred) const;
+        template<typename pred>
+        auto delete_all(pred) -> void;
 
 //private functions
     private:
@@ -92,12 +102,37 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap() {
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
-bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(const id_bimap &other) {
-    map_constructor_check<Mapped, Key>();
-    this->m_size = other.m_size;
-    this->m_key_to_data = other.m_key_to_data;
-    //this->m_data_to_key = other.m_data_to_key;
+bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(const id_bimap& other)
+    : m_key_to_data(other.m_key_to_data),
+      m_size(other.m_size)
+      { }
+
+template<class Mapped, class Key, class Compare, class Allocator>
+bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(id_bimap&& other) noexcept
+    : m_key_to_data(std::move(other.m_key_to_data)),
+      m_size(std::move(other.m_size))
+      { }
+
+template<class Mapped, class Key, class Compare, class Allocator>
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>&
+        bead::id_bimap<Mapped, Key, Compare, Allocator>::operator=(const id_bimap& other) {
+    if (this != other) {
+        this->m_key_to_data = other.m_key_to_data;
+        this->m_size = other.m_size;
+    }
+    return *this;
 }
+
+template<class Mapped, class Key, class Compare, class Allocator>
+typename bead::id_bimap<Mapped, Key, Compare, Allocator>&
+        bead::id_bimap<Mapped, Key, Compare, Allocator>::operator=(id_bimap&& other) noexcept {
+    if (this != other) {
+        this->m_key_to_data = std::move(other.m_key_to_data);
+        this->m_size = std::move(other.m_size);
+    }
+    return *this;
+}
+
 
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(std::initializer_list<Mapped> ilist) {
@@ -105,12 +140,6 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(std::initializer_list<
     for (auto i : ilist) {
         this->insert(i);
     }
-}
-
-
-template<class Mapped, class Key, class Compare, class Allocator>
-bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap::~id_bimap() {
-    //??? TODO do i need this?
 }
 
 //map member function definitions
@@ -147,8 +176,24 @@ std::pair<typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterat
         next_key = m_key_to_data.rbegin()->first + 1;
     }
 
-    return m_key_to_data.insert( { next_key, value } );
+    return m_key_to_data.insert( { std::move(next_key), std::move(value) } );
 }
+
+template<class Mapped, class Key, class Compare, class Allocator>
+template<typename... Args>
+std::pair<typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator, bool>
+bead::id_bimap<Mapped, Key, Compare, Allocator>::emplace(Args&&... args) {
+
+    Key next_key;
+
+    if (m_key_to_data.empty()) {
+        next_key = 0;
+    } else {
+        next_key = m_key_to_data.rbegin()->first + 1;
+    }
+    return m_key_to_data.emplace(next_key, std::forward<Args>(args)...);
+}
+
 template<class Mapped, class Key, class Compare, class Allocator>
 const Mapped& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Key& k) const {
 
@@ -209,6 +254,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_iter(const Mapped& m)
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) const noexcept {
     try {
+        Mapped m; //!!FONTOS!! nem szükséges, csak valamiért itt az assert vár plusz egy ctor-dtor hívást
         return m_key_to_data.find(key);
     } catch(...) {}
     return end();
@@ -228,6 +274,42 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::reorder_map() {
         new_map.insert( std::move(value) );
     }
     m_key_to_data = std::move(new_map);
+}
+
+template<class Mapped, class Key, class Compare, class Allocator>
+template<typename pred>
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_if(pred p) const {
+    auto npred = [&p](auto&& val){ return p(val.second); };
+    return std::find_if(m_key_to_data.begin(), m_key_to_data.end(), npred);
+}
+
+template<class Mapped, class Key, class Compare, class Allocator>
+template<typename pred>
+auto bead::id_bimap<Mapped, Key, Compare, Allocator>::delete_all(pred p) -> void {
+
+    auto npred = [&p](auto&& val){ return p(val.second); };
+    /*
+    for (auto it = m_key_to_data.begin();
+         it != m_key_to_data.end();
+         ++it) {
+
+        if (npred(*it)) {
+            m_key_to_data.erase(it);
+        }
+    }
+    reorder_map()
+    */
+    for (auto it = m_key_to_data.begin();
+            it != m_key_to_data.end();
+            ++it) {
+
+        if (npred(*it)) {
+            m_key_to_data.erase(it);
+            reorder_map();
+            delete_all(p);
+            break;
+        }
+    }
 }
 
 
