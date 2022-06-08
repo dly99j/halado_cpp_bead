@@ -12,12 +12,11 @@
 #include <memory>
 #include <stdexcept>
 #include <type_traits>
+#include <mutex>
 
-//TODO check if integral type and if comparable, exception if not (this is ugly! - i mean the exception, the solution is nice)
-//I might need my own exceptions
+
 namespace bead {
 
-    //constexpr auto variable = [](const auto& val) { return val; };
 
     template<class Mapped,
              class Key = std::size_t,
@@ -57,7 +56,7 @@ namespace bead {
 
         const_iterator begin() const noexcept;
         const_iterator end() const noexcept;
-        std::pair<const_iterator, bool> insert(const Mapped&); //TODO other signatures
+        std::pair<const_iterator, bool> insert(const Mapped&);
         template<typename... Args>
         std::pair<const_iterator, bool> emplace(Args&&...);
 
@@ -72,10 +71,8 @@ namespace bead {
         auto erase(const Mapped&);
         auto find(const Key&) const noexcept;
         auto find(const Mapped&) const noexcept;
-        template<typename pred>
-        auto find_if(pred) const;
-        template<typename pred>
-        auto delete_all(pred) -> void;
+        template<typename pred> auto find_if(pred) const;
+        template<typename pred> auto delete_all(pred) -> void;
         auto next_index() const;
         auto is_contiguous() const noexcept;
         auto reserve(std::size_t);
@@ -90,13 +87,12 @@ namespace bead {
         std::map<Key, Mapped, Compare, Allocator>   m_key_to_data;
         std::vector<Key>                            m_deleted_indices;
         std::size_t                                 m_unconstructed_reserved{};
+        mutable std::recursive_mutex                m_mutex;
     };
 
 //type aliases
-    template<typename T>
-    using kchar_id_bimap    = id_bimap<T, char>;
-
-    using string_id_bimap   = id_bimap<std::string>;
+    template<typename T> using kchar_id_bimap    = id_bimap<T, char>;
+    using string_id_bimap                        = id_bimap<std::string>;
 }
 
 
@@ -125,6 +121,7 @@ template<class Mapped, class Key, class Compare, class Allocator>
 typename bead::id_bimap<Mapped, Key, Compare, Allocator>&
         bead::id_bimap<Mapped, Key, Compare, Allocator>::operator=(const id_bimap& other) {
     if (this != other) {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         this->m_key_to_data = other.m_key_to_data;
         this->m_deleted_indices = other.m_deleted_indices;
         this->m_unconstructed_reserved = other.m_unconstructed_reserved;
@@ -136,6 +133,7 @@ template<class Mapped, class Key, class Compare, class Allocator>
 typename bead::id_bimap<Mapped, Key, Compare, Allocator>&
         bead::id_bimap<Mapped, Key, Compare, Allocator>::operator=(id_bimap&& other) noexcept {
     if (this != other) {
+        std::lock_guard<std::recursive_mutex> lock(m_mutex);
         this->m_key_to_data = std::move(other.m_key_to_data);
         this->m_deleted_indices = std::move(other.m_deleted_indices);
         this->m_unconstructed_reserved = std::move(other.m_unconstructed_reserved);
@@ -147,6 +145,7 @@ typename bead::id_bimap<Mapped, Key, Compare, Allocator>&
 template<class Mapped, class Key, class Compare, class Allocator>
 bead::id_bimap<Mapped, Key, Compare, Allocator>::id_bimap(std::initializer_list<Mapped> ilist) {
     map_constructor_check<Mapped, Key>();
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (auto i : ilist) {
         this->insert(i);
     }
@@ -157,6 +156,7 @@ template<class Mapped, class Key, class Compare, class Allocator>
 typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator
         bead::id_bimap<Mapped, Key, Compare, Allocator>::begin() const noexcept {
 
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (auto it = m_key_to_data.begin(); it != m_key_to_data.end(); ++it) {
         if (std::find(m_deleted_indices.begin(),
                       m_deleted_indices.end(),
@@ -171,6 +171,7 @@ template<class Mapped, class Key, class Compare, class Allocator>
 typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterator
         bead::id_bimap<Mapped, Key, Compare, Allocator>::end() const noexcept {
 
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (auto it = m_key_to_data.rbegin(); it != m_key_to_data.rend(); ++it) {
         if (std::find(m_deleted_indices.begin(),
                       m_deleted_indices.end(),
@@ -186,6 +187,8 @@ std::pair<typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterat
         bead::id_bimap<Mapped, Key, Compare, Allocator>::insert(const Mapped &value) {
 
     Key next_key;
+
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
 
     for (auto it = begin(); it != end(); ++it) {
         if (it->second == value) {
@@ -220,6 +223,9 @@ std::pair<typename bead::id_bimap<Mapped, Key, Compare, Allocator>::const_iterat
 bead::id_bimap<Mapped, Key, Compare, Allocator>::emplace(Args&&... args) {
 
     Key next_key{};
+
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
     if (!m_deleted_indices.empty()) {
         auto min = std::min_element(m_deleted_indices.begin(), m_deleted_indices.end());
         next_key = *min;
@@ -239,6 +245,8 @@ bead::id_bimap<Mapped, Key, Compare, Allocator>::emplace(Args&&... args) {
 template<class Mapped, class Key, class Compare, class Allocator>
 const Mapped& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Key& k) const {
 
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
     auto value = m_key_to_data.find(k);
 
     if ( value == m_key_to_data.end() || std::find(m_deleted_indices.begin(),
@@ -253,6 +261,8 @@ const Mapped& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const 
 template<class Mapped, class Key, class Compare, class Allocator>
 const Key& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Mapped& m) const {
 
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
+
     for (const auto&[key, mapped] : m_key_to_data) {
         if ( mapped == m && std::find(m_deleted_indices.begin(),
                                       m_deleted_indices.end(),
@@ -264,23 +274,28 @@ const Key& bead::id_bimap<Mapped, Key, Compare, Allocator>::operator[](const Map
 }
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::empty() const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_key_to_data.empty();
 }
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::size() const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_key_to_data.size() - m_deleted_indices.size() + m_unconstructed_reserved;
 }
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::capacity() const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_key_to_data.size() + m_unconstructed_reserved;
 }
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::clear() noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     m_key_to_data.clear();
     m_deleted_indices.clear();
 }
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Key& key) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     //m_key_to_data.erase(key);
     m_key_to_data[key].Mapped::~Mapped();
     m_deleted_indices.push_back(key);
@@ -289,6 +304,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Key& key) {
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Mapped& mapped) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     auto it = find_iter(mapped);
     if (it == end()) return;
     auto key = it->first;
@@ -300,6 +316,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::erase(const Mapped& mapped
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_iter(const Mapped& m) const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     for (auto it = begin(); it != end(); ++it) {
         if (it->second == m && std::find(m_deleted_indices.begin(),
                                          m_deleted_indices.end(),
@@ -311,6 +328,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_iter(const Mapped& m)
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if ( std::find(m_deleted_indices.begin(),
                    m_deleted_indices.end(),
                    key) != m_deleted_indices.end()) {
@@ -326,11 +344,13 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Key& key) const
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find(const Mapped& mapped) const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return find_iter(mapped);
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::reorder_map() {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     std::map<Key, Mapped, Compare, Allocator> new_map;
     int new_key{};
     for (auto&& [key, mapped] : m_key_to_data) {
@@ -343,6 +363,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::reorder_map() {
 template<class Mapped, class Key, class Compare, class Allocator>
 template<typename pred>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_if(pred p) const {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     auto npred = [&p, this](auto&& val){ return p(val.second) && std::find(m_deleted_indices.begin(),
                                                                            m_deleted_indices.end(),
                                                                            val.first) == m_deleted_indices.end(); };
@@ -352,7 +373,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::find_if(pred p) const {
 template<class Mapped, class Key, class Compare, class Allocator>
 template<typename pred>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::delete_all(pred p) -> void {
-
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     auto npred = [&p, this](auto&& val){ return p(val.second) &&
                                                 (std::find(m_deleted_indices.begin(),
                                                            m_deleted_indices.end(),
@@ -371,6 +392,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::delete_all(pred p) -> void
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::next_index() const {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (m_deleted_indices.empty()) {
         Key next_key;
         if (m_key_to_data.empty()) {
@@ -386,11 +408,13 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::next_index() const {
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::is_contiguous() const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     return m_deleted_indices.size() == 0;
 }
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::get_last_used_key() const noexcept {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     if (m_key_to_data.empty()) {
         return static_cast<std::size_t>(0);
     } else {
@@ -400,6 +424,7 @@ auto bead::id_bimap<Mapped, Key, Compare, Allocator>::get_last_used_key() const 
 
 template<class Mapped, class Key, class Compare, class Allocator>
 auto bead::id_bimap<Mapped, Key, Compare, Allocator>::reserve(std::size_t n_size) {
+    std::lock_guard<std::recursive_mutex> lock(m_mutex);
     auto last_used_key = get_last_used_key();
     std::size_t non_used{};
     for (const auto& i : m_deleted_indices) {
